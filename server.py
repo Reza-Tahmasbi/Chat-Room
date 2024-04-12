@@ -1,7 +1,9 @@
 import re
 import sys
+import struct
 import socket
 import sqlite3
+import hashlib
 import threading
 from time import sleep
 from colorama import Fore
@@ -31,31 +33,26 @@ class Server:
         return server
         
     def listen_for_messages(self, client):
-        print("test_1")
         for c in self.active_client:
             if client in c:
                 username = c[0] 
         while True:
-            print("test_2")
             try:
                 key = self.find_client_key(client)
-                response = client.recv(2048).decode('utf-8')
-                response = aes_encode(key, response)
-                
-                print("test_3")
+                response = client.recv(1024)
+                response = aes_decode(key, response)
             except:
                 print(Fore.RED + f"Client has left or sent a wrong command")
                 line_print()
                 break
             splited_response = response.split(' ')
-            print("test_4")
             if splited_response[0] not in ("Please","Private","Bye","Public"):
                 final_message = "Enter Correct message"
                 self.send_message_to_client(client, final_message)
             else:
 
                 if splited_response[0] == "Please":
-                    final_message = '[Server]' + f"Here is the list of attendees: {[(f'<{username_[0]}>') for username_ in self.active_client]} "    
+                    final_message = '[Server]' + f"Here is the list of attendees: {[(f'<{user[0]}>') for user in self.active_client]} "    
                     self.send_message_to_client(client, final_message)
                 elif splited_response[0] == "Public":
                     content = re.findall(r'<(.*?)>', response)
@@ -71,20 +68,33 @@ class Server:
                     self.active_client.remove([username , client])
                 
     def find_client_key(self, client):
-        for c in self.active_client:
-            if client in self.active_client:
-                key = c[3]
+        for row in self.active_client:
+            if client in row:
+                key = row[3]
         return key
-    
     
     def send_message_to_client(self, client, message):
                 key = self.find_client_key(client)
                 ct = aes_encode(key, message)
-                client.sendall(ct.encode('utf-8'))
-           
+                # ct is str
+                message = ct.encode("utf-8")
+                # Send message length first
+                client.sendall(struct.pack('!I', len(message)))
+                # Then send the message
+                client.sendall(message)
+                
+    def notify_join_to_all(self, current_client: socket, message: str):
+        for client in self.active_client:
+            if client != current_client:
+                self.send_message_to_client(client[1], message)
+                      
     def send_messages_to_all(self, message):
         for client in self.active_client:
             self.send_message_to_client(client[1], message)
+            
+    def send_messages_to_all_global(self, message: str):
+        for client in self.active_client:
+            client[1].sendall(message.encode("utf-8"))
         
     def grant_permission_client(self, client):
         while True:
@@ -104,25 +114,24 @@ class Server:
                 client.sendall(message.encode("utf-8"))
                 break
             if "valid" in message:
+                client.sendall(message.encode('utf-8'))
                 username = user_command.split()[1]
                 password = user_command.split()[2]
-                ct = aes_encode(get_random_bytes(16), user_command.split()[2])
-                self.active_client.append([username, client, password, ct])
-                client.sendall(f"valid KEY {ct} {message}".encode('utf-8'))
+                accpetance_message = "[SERVER-public]" + "~" + f"{username} join the chat"
+                accpetance_message_private = "[SERVER-private]" + "~" + f"{username} welcome to the chat"
+                key = aes_encode(get_random_bytes(16), user_command.split()[2])
+                key = hashlib.sha256(key.encode()).digest()
+                print("server generated:" + str(key))
+                self.active_client.append([username, client, password, key])
+                self.notify_join_to_all(client, accpetance_message)
+                sleep(0.1)
+                client.sendall(key)
+                sleep(0.1)
+                self.send_message_to_client(client, accpetance_message_private)
                 threading.Thread(target = self.listen_for_messages, args = (client, )).start()      
             else:
                 client.close()
                 continue
-                
-            username = user_command.split()[1]
-            correct_message = "[SERVER-public]" + "~" + f"{username} join the chat"
-            correct_message_private = "[SERVER-private]" + "~" + f"{username} welcome to the chat"
-            try:
-                self.send_messages_to_all(correct_message)
-                sleep(1)
-                self.send_message_to_client(client, correct_message_private)
-            except:
-                pass
             break
                 
     def handel_command(self, user_command: str) -> str:

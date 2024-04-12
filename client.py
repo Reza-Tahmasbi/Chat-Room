@@ -1,12 +1,12 @@
 import socket
 import time
+import struct
 import threading
 from time import sleep
 from colorama import Fore
 from tools.readConf import read_config
 from tools.Print_line import line_print
 from tools.encryption import aes_encode, aes_decode
-
 
 class Client():
     def __init__(self):
@@ -28,9 +28,9 @@ class Client():
         while True:
             message = client.recv(2048).decode('utf-8') #
             if message != '':
-                print(Fore.YELLOW + message, end = '\n')
+                print(Fore.BLUE + message, end = '\n')
                 line_print()
-                client.sendall(input("write command: ").encode('utf-8')) #
+                client.sendall(input(Fore.WHITE + "write command: ").encode('utf-8')) #
                 message = client.recv(2048).decode('utf-8')
                 if "invalid" in message:
                     print(message.split()[1])
@@ -40,8 +40,9 @@ class Client():
                     print("client is closed")
                     break
                 if "valid" in message:
-                    self.key = message.split()[2]
-                    print(" ".join(message.split()[4:]))
+                    print(" ".join(message.split()[1:]))
+                    self.key = client.recv(2048)
+                    print(f"KEY {self.key}")
                     threading.Thread(target= self.send_message_to_server , args=(client,)).start()
                     threading.Thread(target= self.recv_message_from_server , args=(client,)).start()
                     break 
@@ -56,8 +57,8 @@ class Client():
     def send_message_to_server(self, client): # send mesasage to the server when client Enter something 
         while 1:
             try:
-                sleep(0.5)
-                message = input("chat: ")
+                sleep(0.1)
+                message = input("chat> ")
                 if message != '':
                     ct = aes_encode(self.key, message)
                     client.sendall(ct.encode('utf-8'))
@@ -72,14 +73,15 @@ class Client():
                 
     def recv_message_from_server(self, client): # send mesasage to the server when client Enter something 
         while True:
-            try:
-                message = client.recv(2048).decode('ascii')
-                aes_decode(self.key, message)
-                print(aes_decode(self.key, message))
-            except:
-                print("An error occured!")
-                client.close()
-                break
+            # try:
+            message_length = struct.unpack('!I', client.recv(4))[0]
+            # Then receive the actual message
+            message = client.recv(message_length).decode('utf-8')
+            print(aes_decode(self.key, message))
+            # except:
+                # print("An error occured!")
+                # client.close()
+                # break
         
     def commiunicate_to_server(self , client): # after client request for connecting make a connection to the server
         threading.Thread(target= self.listen_get_permission_from_server , args=(client,)).start()

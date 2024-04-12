@@ -4,8 +4,8 @@ from Crypto.Util.Padding import pad, unpad
 
 def aes_encode(key: bytes, message: str) -> str:
     cipher = AES.new(key, AES.MODE_CBC)
-    ct_bytes = cipher.encrypt(pad(message.encode('utf-8'), AES.block_size))
-    ct = base64.b64encode(cipher.iv + ct_bytes).decode('utf-8')
+    ct_bytes = cipher.encrypt(pad(message.encode(), AES.block_size))
+    ct = base64.b64encode(cipher.iv + ct_bytes).decode()
     return ct
 
 def aes_decode(key: bytes, ct: str) -> str:
@@ -14,5 +14,4 @@ def aes_decode(key: bytes, ct: str) -> str:
     ct = ct[16:]
     cipher = AES.new(key, AES.MODE_CBC, iv=iv)
     pt = unpad(cipher.decrypt(ct), AES.block_size).decode('utf-8')
-    print(type(pt))
     return pt
