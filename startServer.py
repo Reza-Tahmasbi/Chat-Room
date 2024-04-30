@@ -12,7 +12,8 @@ def start():
         client, address = server.accept()
         print(Fore.RED + f"Successfully connected to client {address[0]} {address[1]}")
         line_print()
-        threading.Thread(target=server_init.grant_permission_client, args=(client, )).start()
+        server_init.setup_client_connection(client)
+        # threading.Thread(target=server_init.setup_client_connection, args=(client, )).start()
         
 if __name__ == '__main__':
     start()
