@@ -1,5 +1,13 @@
 # Chatroom Project Usage
 
+## how to use:
+
+### run server
+``` Python startServer.py```
+
+### run client
+``` Python startClient.py```
+
 ## Registration
 To register a new user, use the following command format:
 
