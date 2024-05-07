@@ -1,2 +1,2 @@
 def line_print():
-    print('-'*20)
+    print('-'*30)

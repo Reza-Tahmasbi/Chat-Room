@@ -1,1 +1,0 @@
-Public message, length=<14>:<Hello everyone>

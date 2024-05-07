@@ -11,30 +11,33 @@ from tools.encryption import generate_key
 
 class Client():
     def __init__(self):
+        # Initialize the Client class with configurations from read_config() and a key attribute set to None
         self.configs = read_config()
         self.key = None
         
+        
     def print_client_guide(self):
+        # Method to print a guide for using the client's messaging features
         client_guide = """
         Messages can be sent in follwing format:
                 1. Public normal message: 
                     <description: this message will be sent to everyone including urself>
                     <example:
-                        Public message, length=<message_len>:
-                        <message_body>
+                        Public message, length=<11>:
+                        <Hello World>
                     >
                 2. Private normal message:
                     <description: this message will be sent to the people you mention>
                     <example:
-                        Private message, length=<message_len> to <user_name1>,<user_name2>,<user_name3>:
-                        <message_body>
+                        Private message, length=<11> to <Reza>,<user_name2>,<user_name3>:
+                        <Hello World>
                     >
                 3. Bye:
                     <description: this message command is used to quit the chatroom>
                     <example:
                          - Bye
                     >
-                4. Guide
+                4. Guide doens't work right now
                     <description: this command prints this message :)>
                     <example:
                         - Guide
@@ -52,7 +55,14 @@ class Client():
         
         print(client_guide)
         
+        
     def build_connection(self):
+        """
+            Builds a client connection to the server.
+
+            Returns:
+            socket.socket: The connected client socket.
+        """
         client = client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try :
             client.connect((self.configs['HOST'] , self.configs['PORT']))
@@ -63,15 +73,26 @@ class Client():
             line_print()
         return client
     
+    
     def create_client(self, client):
+        """
+        Creates a client session by handling user input and sending the appropriate message to the server.
+
+        Args:
+            client (socket.socket): The connected client socket.
+
+        Returns:
+            dict: The message dictionary containing the user's request.
+        """
         entry_message = """
-        
             HI, Sir/Mam; Please enter your choice in one of the following format:
             Register: Registration <username><password>
             Login: Login <username><password>
-            
+            Manual: -m
             """
         user_query = input(Fore.BLUE + entry_message)
+        if user_query == "-m":
+            self.print_client_guide()
         try:
             # extract username and password
             username, password = extract_username_password(user_query)
@@ -99,8 +120,15 @@ class Client():
             print(Fore.RED + "Invalid Request")
             return self.create_client(client)
         return message
+
     
     def hello_message(self):
+        """
+            Prompts the user to enter the "Hello" message and encrypts it using the generated key.
+
+        Returns:
+            tuple: A tuple containing the encrypted ciphertext and the initialization vector (IV).
+        """
         message = input("say 'Hello' to join to the chatroom: ")
         if message.lower() == "hello":
             ciphertext, iv = AESCipher(self.key).encrypt(message.encode())
@@ -108,7 +136,16 @@ class Client():
         else:
             return False
         
+        
     def receive_message_from_chatroom(self, client, username) -> None:
+        """
+        Receives and processes messages from the chatroom server.
+
+        Args:
+            client (socket.socket): The client socket connection to the chatroom server.
+            username (str): The username of the client receiving messages.
+
+        """
         save_directory = os.getcwd()
         os.makedirs(os.path.join(save_directory, username), exist_ok=True)
         while True:
@@ -122,14 +159,34 @@ class Client():
                         receive_file(client, username, message["file"], os.join(save_directory, username))
             except Exception as e:
                 print("An error occurred while receiving messages:", e)            
+       
            
     def send_message(self, message, client):
+        """
+        Encrypts and sends a message to the client.
+
+        Args:
+            message (str): The message to be sent.
+            client (socket.socket): The client socket connection.
+
+        This method encrypts the message using the AESCipher class and the encryption key, then sends the encrypted message to the client.
+        """
+    
         ciphered_message, iv = AESCipher(self.key).encrypt(message.encode())
         client.sendall(iv)
         sleep(0.1)
         client.sendall(ciphered_message)
     
+    
     def send_message_to_chatroom(self, client) -> None:
+        """
+        Sends messages to the chatroom server.
+
+        Args:
+            client (socket.socket): The client socket connection to the chatroom server.
+
+        This method prompts the user for input, sends messages to the server, and handles the 'Bye' flag to exit the chatroom.
+        """
         while True:
             try:
             # Prompt for user input and send messages to the server
@@ -142,8 +199,20 @@ class Client():
                     break
             except Exception as e:
                 print("An error occurred while sending messages:", e)
+           
                 
     def receive_message(self, client):
+        """
+        Receives and decrypts a message from the client.
+
+        Args:
+            client (socket.socket): The client socket connection.
+
+        Returns:
+            str: The decrypted message.
+
+        This method receives an encrypted message from the client, decrypts it using the AESCipher class and the encryption key, and returns the decrypted message.
+        """
         iv = client.recv(1024)
         sleep(0.2)
         message = client.recv(1024)
@@ -156,7 +225,17 @@ class Client():
             decrypted_hello = AESCipher(self.key).decrypt(message, iv).decode()
         return decrypted_hello
         
+        
     def commiunicate_to_server(self , client): # after client request for connecting make a connection to the server
+        """
+        Establishes communication with the server after client connection.
+
+        Args:
+            client (socket.socket): The connected client socket.
+
+        This method handles the communication process with the server after the client connects.
+        It creates a client session, receives server messages, processes login information, handles the initial handshake, and starts threads for sending and receiving messages in the chatroom.
+        """
         user_data = self.create_client(client)
         # re2
         server_message = client.recv(1024).decode()
@@ -183,8 +262,6 @@ class Client():
                 # welcome message being printed
                 print(server_message["message"])
                 print(f"You can now chat here")
-                
-                # prints an overall giude for user.
                 receive_message_thread = threading.Thread(target=self.receive_message_from_chatroom, args=(client,user_data["username"]))
                 send_message_thread = threading.Thread(target=self.send_message_to_chatroom, args=(client,))
                 receive_message_thread.start()
@@ -195,6 +272,4 @@ class Client():
                 # if not saying hello, then we close the connection
                 print("You did not say hello, so have a good day!")
                 client.close()
-            
-            
         print("[Connection has been closed]")
