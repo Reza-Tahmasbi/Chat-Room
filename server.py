@@ -34,7 +34,8 @@ class Server:
             sys.exit(0)
         return server
         
-    def broadcast(self, message, target_users = None):
+    def broadcast(self, user, message, target_users = None):
+        self.history.edit_history(message)
         for user in target_users:
             ciphertext, iv = AESCipher(user["key"]).encrypt(message.encode())
             user["conn"].sendall(iv)
@@ -57,32 +58,36 @@ class Server:
                 print(Fore.RED + f"Client has left or sent a wrong command")
                 line_print()
                 break
-            try:
-                message_info = process_message(user_message_decoded)
-                if message_info["flag"] not in ("Please","Private","Bye","Public"):
-                    server_message = "Message Not Valid! Enter the correct message:"
-                    self.broadcast(server_message, [user])
-                else:
-                    if message_info["flag"] == "Please":
-                        server_message = list_names_from_server(self.active_client)
-                        print(server_message)
-                        self.broadcast(server_message, [user])
+            # try:
+            message_info = process_message(user_message_decoded, user["username"])
+            if message_info["flag"] not in ("Please","Private","Bye","Public"):
+                server_message = "Message Not Valid! Enter the correct message:"
+                self.broadcast(user, server_message, [user])
+            else:
+                if message_info["flag"] == "Please":
+                    server_message = list_names_from_server(self.active_client)
+                    print(server_message)
+                    self.broadcast(user, server_message, [user])
+                    
+                elif message_info["flag"] == "Public":
+                    server_message = public_from_server(message_info)
+                    self.broadcast(user, server_message, self.active_client)
+                    
+                elif message_info["flag"] == "Private":
+                    server_message = private_from_server(message_info)
+                    target_users = []
+                    for user in self.active_client:
+                        if user["username"] in message_info["usernames"]:
+                            target_users.append(user)
+                    self.broadcast(user, server_message, target_users)
+                    
+                elif message_info["flag"] == "Bye" or client.close():
+                    server_message = bye_to_server(message_info)
+                    self.broadcast(user, server_message, self.active_client)
+                    self.active_client.remove(user)
                         
-                    elif message_info["flag"] == "Public":
-                        server_message = public_from_server(message_info)
-                        self.broadcast(server_message, self.active_client)
-                        
-                    elif message_info["flag"] == "Private":
-                        server_message = list_names_from_server(message_info)
-                        self.broadcast(server_message, message_info["usernames"])
-                        
-                    elif message_info["flag"] == "Bye" or client.close():
-                        server_message = bye_to_server(message_info)
-                        self.broadcast(server_message, self.active_client)
-                        self.active_client.remove(user)
-                        
-            except Exception as e:
-                print("Error broadcasting message:", e)
+            # except Exception as e:
+            #     print("Error broadcasting message:", e)
     
     def register(self, username, password):
         self.db_con.execute("SELECT * FROM user WHERE username=?", (username,))
@@ -133,7 +138,10 @@ class Server:
             try:
                 decrypted_hello = AESCipher(generated_key).decrypt(hello_message, iv).decode()
             except:
+                print("checking hello")
                 client.sendall("close Your password is wrong! try again.".encode())
+                sleep(0.1)
+                client.close()
                 break
             
             user = {
@@ -142,17 +150,16 @@ class Server:
                     "password":user_message["password"],
                     "key": generated_key
                 }
-            
             if decrypted_hello == "Hello":
                 # check if user is already in the chatroom, then we remove old one.
                 self.check_if_already_logged_in(user_message)
                 # broadcast to all that user has joined the chat
                 message = f"{user['username']} has joined the chatroom!"
-                self.broadcast(message, self.active_client)
+                self.broadcast(user, message, self.active_client)
                 # say weclome to the specific user
                 sleep(0.2)
                 welcome_message = f"Hi, {user_message['username']} Welcome to the chatroom!"
-                self.broadcast(welcome_message, [user])
+                self.broadcast(user, welcome_message, [user])
                 # add client to list of clients
                 self.active_client.append(user)
                 # notify a new member has arrived.

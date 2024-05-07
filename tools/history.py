@@ -7,8 +7,7 @@ class History:
             self.file = file
             file.close()
         
-    def edit_history(message: str) -> None:
-        file =  open("History/history.txt", "r")
+    def edit_history(self, message: str) -> None:
+        file =  open("History/history.txt", "a")
         file.write("\n" + message)
-
             

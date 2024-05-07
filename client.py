@@ -134,7 +134,7 @@ class Client():
             try:
             # Prompt for user input and send messages to the server
                 sleep(0.2)
-                user_message = input(f"You> ")
+                user_message = str(input("\nYou> "))
                 message_info = process_message(user_message)
                 self.send_message(message_info["message"], client)
                 if message_info["flag"] == 'Bye':
@@ -147,7 +147,13 @@ class Client():
         iv = client.recv(1024)
         sleep(0.2)
         message = client.recv(1024)
-        decrypted_hello = AESCipher(self.key).decrypt(message, iv).decode()
+        try:
+            if message["flag"] == "close":
+                print(message["message"])
+                client.close()
+                return None
+        except:
+            decrypted_hello = AESCipher(self.key).decrypt(message, iv).decode()
         return decrypted_hello
         
     def commiunicate_to_server(self , client): # after client request for connecting make a connection to the server
@@ -157,7 +163,7 @@ class Client():
         server_message = make_usable(server_message)
         line_print()
         if server_message["flag"] == "close":
-            print(server_message["body"])
+            print(server_message["message"])
             client.close()
             
         else: # when the flag is login
@@ -174,11 +180,6 @@ class Client():
                 sleep(0.2)
                 message = self.receive_message(client)
                 server_message = process_message(message)
-
-                if server_message["flag"] == "close":
-                    print(server_message["message"])
-                    client.close()
-                
                 # welcome message being printed
                 print(server_message["message"])
                 print(f"You can now chat here")
